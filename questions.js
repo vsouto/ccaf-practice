@@ -24,8 +24,8 @@ const QUESTIONS = [
     options: [
       "Continue the loop while stop_reason is \"tool_use\" and terminate when stop_reason is \"end_turn\".",
       "Parse the assistant's natural-language output for completion phrases, keeping the 5-iteration cap as the primary stop.",
-      "Set max_tokens low so the model is forced to stop, signalling the loop to end.",
-      "Terminate as soon as any tool returns a successful result, since the task is then complete.",
+      "Set max_tokens low so the model is forced to stop early, and treat each truncated response as the signal to end the loop.",
+      "Terminate as soon as any tool returns a successful result, since a successful tool call means the task is complete.",
     ],
     correct: 0,
     explanation:
@@ -38,10 +38,10 @@ const QUESTIONS = [
     question:
       "Your coordinator spawns a synthesis subagent to combine findings from the web-search and document-analysis subagents. The synthesis output is consistently vague and ignores the earlier findings. What is the most likely cause?",
     options: [
-      "The synthesis subagent did not automatically inherit the coordinator's conversation history, and the findings were never passed explicitly in its prompt.",
-      "The synthesis subagent needs a larger max_tokens to access the shared memory of prior agents.",
-      "Subagents share memory by default, so the findings were overwritten by a race condition.",
-      "The coordinator should have used end_turn to flush context before spawning synthesis.",
+      "The synthesis subagent doesn't inherit the coordinator's history, and the findings were never included in its prompt.",
+      "The synthesis subagent's max_tokens is too low for it to read the shared memory store written by the prior subagents.",
+      "Subagents share one memory store by default, so a race condition let later writes overwrite the earlier findings.",
+      "The coordinator should have emitted end_turn to flush its context into the synthesis subagent before spawning it.",
     ],
     correct: 0,
     explanation:
@@ -54,10 +54,10 @@ const QUESTIONS = [
     question:
       "Running your system on \"the impact of remote work on cities,\" every subagent completes successfully, but the final report only discusses housing markets — nothing on transit, retail, or office real estate. The coordinator's log shows it created three subtasks: \"remote work and home prices,\" \"remote work and rent,\" and \"remote work and mortgages.\" What is the root cause?",
     options: [
-      "The coordinator's task decomposition was too narrow, producing subagent assignments that don't cover the relevant domains of the topic.",
-      "The synthesis agent filtered out non-housing findings due to a relevance bug.",
-      "The web-search subagent's queries were not comprehensive enough.",
-      "The subagents shared context and converged on a single subtopic.",
+      "The coordinator decomposed the topic too narrowly, so the assigned subtasks never covered its other relevant domains.",
+      "The synthesis agent's relevance filter has a bug that drops every non-housing finding before the report is written.",
+      "The web-search subagent's queries were not comprehensive enough to surface transit, retail, and office sources.",
+      "The subagents shared one context window and gradually converged on a single housing subtopic during the run.",
     ],
     correct: 0,
     explanation:
@@ -70,9 +70,9 @@ const QUESTIONS = [
     question:
       "Your coordinator delegates to four independent subagents (search, analyze, two distinct subtopics). Sequential execution is too slow. How do you run them in parallel within the Agent SDK?",
     options: [
-      "Emit multiple Task tool calls in a single coordinator response.",
-      "Issue each Task call in a separate conversation turn and rely on the SDK to batch them.",
-      "Set tool_choice to \"any\" so the model fires all tools at once.",
+      "Emit multiple Task tool calls within a single coordinator response.",
+      "Issue each Task call in its own turn and let the SDK batch them.",
+      "Set tool_choice to \"any\" so the model fires all four tools at once.",
       "Increase max_tokens so all four tool calls fit in one completion.",
     ],
     correct: 0,
@@ -86,10 +86,10 @@ const QUESTIONS = [
     question:
       "You're designing two workflows: (1) a code review that always checks the same four aspects per file, and (2) \"add comprehensive tests to this legacy codebase,\" where the needed work depends on what you discover. How should you decompose each?",
     options: [
-      "Use a fixed prompt-chaining pipeline for the predictable review, and dynamic adaptive decomposition for the open-ended testing task.",
-      "Use dynamic adaptive decomposition for both, since it is the more flexible pattern.",
-      "Use a fixed sequential pipeline for both to keep behavior deterministic.",
-      "Use a single mega-prompt for each so the model decides everything in one pass.",
+      "Use a fixed prompt-chaining pipeline for the review and dynamic adaptive decomposition for the testing task.",
+      "Use dynamic adaptive decomposition for both, since a single flexible pattern is easier to maintain across workflows.",
+      "Use a fixed sequential pipeline for both, planning the test work up front to keep behavior deterministic.",
+      "Use a single mega-prompt for each workflow so the model plans and executes everything in one pass.",
     ],
     correct: 0,
     explanation:
@@ -102,10 +102,10 @@ const QUESTIONS = [
     question:
       "An investigation session analyzed many files yesterday. Overnight, a large refactor changed most of those files. You want to continue today. What is the most reliable approach?",
     options: [
-      "Start a new session seeded with a structured summary of the prior findings, since the cached tool results are now stale.",
-      "Resume the old session with --resume; the prior tool results are still valid context.",
-      "Fork the old session so both the stale and fresh branches stay available.",
-      "Resume the old session and rely on the model to notice the files changed on its own.",
+      "Start a new session and inject a structured summary of the prior findings instead of the stale tool results.",
+      "Resume the old session with --resume, since the prior tool results remain valid context even after a refactor.",
+      "Fork the old session with fork_session so both the stale and the refreshed branches stay available.",
+      "Resume the old session and rely on the model to notice on its own which files changed overnight.",
     ],
     correct: 0,
     explanation:
@@ -120,8 +120,8 @@ const QUESTIONS = [
     options: [
       "fork_session to create independent branches from the shared analysis baseline.",
       "--resume <session-name> to alternate between the two strategies in one session.",
-      "Spawn two subagents with Task and let them share the parent context.",
-      "Run /compact between the two strategies to reset context.",
+      "Spawn two subagents with Task and let them share the parent session's context.",
+      "Run /compact between the two strategies to reset context to the baseline.",
     ],
     correct: 0,
     explanation:
@@ -136,7 +136,7 @@ const QUESTIONS = [
     question:
       "Logs show the agent often calls get_customer when users ask about orders. Both get_customer (\"Retrieves customer information\") and lookup_order (\"Retrieves order details\") have minimal descriptions and accept similar identifiers. What is the most effective first step?",
     options: [
-      "Expand each tool's description to include input formats, example queries, edge cases, and when to use it versus the similar tool.",
+      "Expand both descriptions with input formats, example queries, edge cases, and when to use each.",
       "Add 5–8 few-shot examples to the system prompt showing order queries routing to lookup_order.",
       "Build a routing layer that parses each turn and pre-selects a tool from detected keywords.",
       "Consolidate both into a single lookup_entity tool that internally decides which backend to query.",
@@ -152,10 +152,10 @@ const QUESTIONS = [
     question:
       "Your MCP tools currently return a generic \"Operation failed\" string on any failure. The agent retries timeouts forever and also retries policy violations (like over-limit refunds) that will never succeed. What should the tools return instead?",
     options: [
-      "Structured error metadata: an errorCategory (transient/validation/business/permission), an isRetryable boolean, and a human-readable description.",
-      "A uniform \"Operation failed\" message but logged with a stack trace for debugging.",
-      "An empty result set so the agent treats the failure as \"no data found.\"",
-      "An HTTP 500 status code and nothing else, letting the SDK decide whether to retry.",
+      "Structured errors with an errorCategory (transient, validation, business, permission), an isRetryable flag, and a description.",
+      "The same uniform \"Operation failed\" message, but logged server-side with a full stack trace and request ID for later debugging.",
+      "An empty result set, so the agent treats the failure as \"no data found\" and moves on to its next step without retrying.",
+      "An HTTP 500 status code with no body, letting the SDK's built-in retry policy decide whether the call is worth repeating.",
     ],
     correct: 0,
     explanation:
@@ -168,10 +168,10 @@ const QUESTIONS = [
     question:
       "Each specialized subagent currently has access to all 18 tools in your system, and tool selection has become unreliable. The synthesis agent even attempts web searches. What is the best remedy?",
     options: [
-      "Scope each subagent's tool set to the tools its role needs, adding limited cross-role tools only for specific high-frequency cases.",
-      "Improve every tool description so the agents can distinguish all 18 reliably.",
-      "Raise max_tokens so the model has room to reason over all 18 tools.",
-      "Set tool_choice to \"any\" so the model is forced to pick a tool quickly.",
+      "Scope each subagent to the tools its role needs, plus a few cross-role tools for specific high-frequency cases.",
+      "Rewrite all 18 tool descriptions in more detail so every agent can reliably distinguish the full set.",
+      "Raise max_tokens so each agent has enough room to reason carefully over all 18 tool definitions before choosing.",
+      "Set tool_choice to \"any\" so each agent is forced to commit to a tool quickly instead of deliberating.",
     ],
     correct: 0,
     explanation:
@@ -184,10 +184,10 @@ const QUESTIONS = [
     question:
       "Your extraction service sometimes returns conversational prose instead of calling the extraction tool. You have multiple extraction schemas and don't know in advance which applies. How do you guarantee the model calls a tool?",
     options: [
-      "Set tool_choice to \"any\", so the model must call a tool but can choose which.",
+      "Set tool_choice to \"any\", so the model must call a tool but can choose which one.",
       "Set tool_choice to \"auto\", which lets the model decide whether a tool is needed.",
-      "Force a single named tool with tool_choice {\"type\":\"tool\",\"name\":\"...\"} even though you don't know which schema applies.",
-      "Lower max_tokens until the model has no room to produce prose.",
+      "Force one named tool with tool_choice {\"type\":\"tool\",\"name\":\"...\"} even without knowing the schema.",
+      "Lower max_tokens until the model has no room left to produce a prose reply.",
     ],
     correct: 0,
     explanation:
@@ -200,14 +200,14 @@ const QUESTIONS = [
     question:
       "Your team needs a shared GitHub MCP server available to everyone who clones the repo, authenticated with a token that must not be committed. You also want a personal experimental server only on your machine. How do you configure these?",
     options: [
-      "Put the shared server in project-level .mcp.json using ${GITHUB_TOKEN} env-var expansion; put the personal server in user-level ~/.claude.json.",
-      "Put both servers in ~/.claude.json so credentials stay off version control.",
-      "Hard-code the token in .mcp.json and add the file to .gitignore.",
-      "Put the shared server in ~/.claude.json and the personal one in .mcp.json.",
+      "Put the shared server in project .mcp.json with ${GITHUB_TOKEN} expansion, and the personal one in ~/.claude.json.",
+      "Put both servers in user-level ~/.claude.json so the token and both configs stay out of version control entirely.",
+      "Hard-code the token in the project .mcp.json and add that file to .gitignore so it is never committed.",
+      "Put the shared server in user-level ~/.claude.json and the personal server in the project's .mcp.json.",
     ],
     correct: 0,
     explanation:
-      "Project-level .mcp.json is for shared team tooling and supports environment-variable expansion (${GITHUB_TOKEN}) so secrets aren't committed. User-level ~/.claude.json is for personal/experimental servers. Hard-coding tokens is unsafe even with .gitignore, and the last option reverses the scopes.",
+      "Project-level .mcp.json is for shared team tooling and supports environment-variable expansion (${GITHUB_TOKEN}) so secrets aren't committed. User-level ~/.claude.json is for personal/experimental servers. Hard-coding tokens is unsafe even with .gitignore, and swapping the two locations reverses the scopes.",
   },
   {
     id: "d2-mcp-resources",
@@ -216,10 +216,10 @@ const QUESTIONS = [
     question:
       "Your agent burns many exploratory tool calls just discovering what data exists (issue summaries, doc hierarchies, DB schemas) before doing real work. Which MCP feature reduces this overhead?",
     options: [
-      "MCP resources, which expose content catalogs so the agent has visibility into available data without exploratory tool calls.",
-      "More MCP tools, one per catalog, so the agent can query each individually.",
-      "Setting tool_choice to \"any\" so the agent commits to action faster.",
-      "A larger context window so all data can be loaded upfront.",
+      "MCP resources, which expose content catalogs so the agent can see what data exists without exploratory calls.",
+      "More MCP tools, one per catalog, so the agent can query each data source individually whenever it needs it.",
+      "Setting tool_choice to \"any\" so the agent stops exploring and commits to a concrete action faster.",
+      "A larger context window, so every issue, document, and schema can be loaded into the prompt upfront.",
     ],
     correct: 0,
     explanation:
@@ -233,9 +233,9 @@ const QUESTIONS = [
       "You need to (a) find every file matching **/*.test.tsx and (b) find every caller of a function named processRefund. Which built-in tools fit each task?",
     options: [
       "Glob for the filename-pattern search; Grep for the content/symbol search.",
-      "Grep for both, since it searches files anyway.",
-      "Glob for both, since both involve matching patterns.",
-      "Read every file and let the model find the matches.",
+      "Grep for both, since it can match file paths as well as file contents.",
+      "Glob for both, since both tasks come down to matching a text pattern.",
+      "Read every file in the repository and let the model spot both sets of matches.",
     ],
     correct: 0,
     explanation:
@@ -249,9 +249,9 @@ const QUESTIONS = [
       "An Edit operation keeps failing because the anchor text you're matching appears multiple times in the file and isn't unique. What is the recommended fallback?",
     options: [
       "Use Read to load the full file, then Write the modified contents back.",
-      "Retry Edit repeatedly until one of the matches happens to take.",
-      "Delete the file and recreate it from memory.",
-      "Switch to Glob to locate a uniquely named copy of the file.",
+      "Retry Edit repeatedly until one of the duplicate matches happens to take.",
+      "Delete the file and recreate it from memory with the intended change.",
+      "Switch to Glob to locate a uniquely named copy of the file and edit that.",
     ],
     correct: 0,
     explanation:
@@ -264,10 +264,10 @@ const QUESTIONS = [
     question:
       "A search subagent's query returns nothing. The coordinator needs to react correctly. Why does it matter whether the tool reports \"access failure\" versus \"valid empty result\"?",
     options: [
-      "An access failure (e.g., timeout) may warrant a retry or alternative approach, while a valid empty result is a successful query with no matches and should not be retried.",
-      "They are interchangeable; both mean the agent should stop and escalate to a human.",
-      "Empty results should always be reported as failures so the coordinator retries.",
-      "Access failures should be silently converted to empty results to keep the workflow running.",
+      "An access failure may merit a retry or alternative; a valid empty result is a successful query and shouldn't be retried.",
+      "They are interchangeable signals; in both cases the agent should stop and escalate the whole query to a human.",
+      "Empty results should always be reported as failures so the coordinator retries until data comes back.",
+      "Access failures should be silently converted into empty results so the overall workflow keeps running without interruption.",
     ],
     correct: 0,
     explanation:
@@ -282,10 +282,10 @@ const QUESTIONS = [
     question:
       "A new team member reports that Claude isn't following the team's coding standards, even though those standards work for everyone else. You discover their standards are configured in ~/.claude/CLAUDE.md. Why is this the problem?",
     options: [
-      "User-level instructions in ~/.claude/CLAUDE.md apply only to that user and aren't shared via version control, so the team standards should live in project-level configuration.",
-      "User-level CLAUDE.md is ignored entirely; only the project root CLAUDE.md is ever read.",
-      "~/.claude/CLAUDE.md is overridden by directory-level files, so it never takes effect.",
-      "The new member needs to run /compact to load the user-level memory.",
+      "User-level ~/.claude/CLAUDE.md isn't shared via version control, so team standards belong in project-level configuration.",
+      "User-level CLAUDE.md is ignored entirely once a repo is opened; only the project root CLAUDE.md is ever read at startup.",
+      "~/.claude/CLAUDE.md is always overridden by directory-level CLAUDE.md files, so its rules never take effect.",
+      "The new member must run /compact once after setup so the user-level memory file is loaded into the session.",
     ],
     correct: 0,
     explanation:
@@ -298,10 +298,10 @@ const QUESTIONS = [
     question:
       "You have a skill that performs a verbose whole-codebase analysis. Its lengthy output keeps cluttering the main conversation and crowding out context. Which frontmatter option helps?",
     options: [
-      "context: fork, which runs the skill in an isolated sub-agent context so its output doesn't pollute the main conversation.",
-      "allowed-tools, which limits which tools the skill can use.",
-      "argument-hint, which prompts the developer for required parameters.",
-      "There is no such option; verbose skills must be split into multiple smaller skills.",
+      "context: fork, which runs the skill in an isolated sub-agent context away from the main conversation.",
+      "allowed-tools, which limits the tools the skill may call and therefore how much output it can generate.",
+      "argument-hint, which tells Claude to summarize the skill's output before returning it to the conversation.",
+      "There is no such option; verbose skills must be split into several smaller skills invoked in sequence.",
     ],
     correct: 0,
     explanation:
@@ -316,8 +316,8 @@ const QUESTIONS = [
     options: [
       "Add the -p (or --print) flag to run Claude Code in non-interactive mode.",
       "Set an environment variable CLAUDE_HEADLESS=true before running the command.",
-      "Redirect stdin from /dev/null.",
-      "Add a --batch flag to the command.",
+      "Redirect stdin from /dev/null so the prompt is submitted automatically at startup.",
+      "Add a --batch flag so the command runs as a queued, non-blocking job.",
     ],
     correct: 0,
     explanation:
@@ -331,9 +331,9 @@ const QUESTIONS = [
       "Your CI step needs Claude Code's review findings as machine-parseable output that you can post as inline PR comments. Which flags produce schema-conformant structured output?",
     options: [
       "--output-format json combined with --json-schema.",
-      "--print alone, then parse the prose with a regex.",
+      "--print alone, then parse the prose output with a regex.",
       "--verbose so the full reasoning is captured for parsing.",
-      "--batch with custom_id correlation.",
+      "--batch with custom_id correlation for each finding.",
     ],
     correct: 0,
     explanation:
@@ -346,10 +346,10 @@ const QUESTIONS = [
     question:
       "After Claude generates a feature, you ask the same session to review its own code for bugs and it finds little. Why might an independent review instance be more effective?",
     options: [
-      "A model retains its reasoning context from generation, making it less likely to question its own decisions; a fresh instance without that context catches subtler issues.",
-      "A second instance has a larger context window, so it can hold more of the diff.",
-      "Self-review is impossible; the API forbids reviewing prior assistant output.",
-      "The original session has exhausted its tokens and can no longer reason.",
+      "The session retains its generation reasoning and is less likely to question its own decisions; a fresh instance isn't.",
+      "A second instance is allocated a larger context window, so it can hold the full diff plus all of the surrounding files.",
+      "Self-review is blocked by the API, which won't let a model critique assistant output from earlier turns.",
+      "The original session has exhausted its token budget and can no longer reason deeply about the code.",
     ],
     correct: 0,
     explanation:
@@ -364,10 +364,10 @@ const QUESTIONS = [
     question:
       "Your automated reviewer produces too many false positives on code comments. You've already tried adding \"be conservative\" and \"only report high-confidence findings\" to the prompt, with no improvement. What works better?",
     options: [
-      "Replace vague instructions with explicit criteria, e.g., \"flag comments only when the claimed behavior contradicts the actual code behavior.\"",
-      "Add \"do not produce false positives\" to the prompt for extra emphasis.",
-      "Lower the model temperature so it is more conservative.",
-      "Ask the model to rate its confidence and only emit findings above 90%.",
+      "Replace vague instructions with explicit criteria, e.g. \"flag comments only when claimed behavior contradicts the code.\"",
+      "Add \"do not produce false positives\" to the system prompt in capitals so the instruction gets extra emphasis and weight.",
+      "Lower the model temperature so its judgments become more conservative and it reports fewer findings.",
+      "Ask the model to self-rate its confidence on each finding and only emit those it rates above 90%.",
     ],
     correct: 0,
     explanation:
@@ -380,10 +380,10 @@ const QUESTIONS = [
     question:
       "Detailed prose instructions still produce inconsistent handling of ambiguous extraction cases (informal measurements, varied document structures). What technique most improves consistency and generalization?",
     options: [
-      "Add 2–4 targeted few-shot examples that show the reasoning for ambiguous cases and the desired output format.",
-      "Repeat the instructions three times to reinforce them.",
-      "Switch to tool_choice \"any\" so the model is forced to extract something.",
-      "Remove the ambiguous documents from the input set.",
+      "Add 2–4 targeted few-shot examples showing the reasoning for ambiguous cases and the desired output.",
+      "Repeat the key instructions three times across the prompt to reinforce them for ambiguous cases.",
+      "Switch to tool_choice \"any\" so the model is forced to extract something from every document.",
+      "Remove the ambiguous documents from the input set so only cleanly structured ones are extracted.",
     ],
     correct: 0,
     explanation:
@@ -396,10 +396,10 @@ const QUESTIONS = [
     question:
       "You need guaranteed, schema-compliant JSON output from extraction with no syntax errors. What's the most reliable approach?",
     options: [
-      "Define an extraction tool with a JSON schema and read the structured data from the tool_use response.",
-      "Ask the model to \"respond only in valid JSON\" and parse the text reply.",
-      "Post-process the text output with a JSON-repair library.",
-      "Lower max_tokens so the model can't add prose around the JSON.",
+      "Define an extraction tool with a JSON schema and read the structured data from the tool_use block.",
+      "Ask the model to \"respond only in valid JSON\" in the system prompt and parse the text reply.",
+      "Post-process the text output with a JSON-repair library to fix any syntax errors before parsing.",
+      "Lower max_tokens so the model has no room to wrap prose around the JSON object it returns.",
     ],
     correct: 0,
     explanation:
@@ -412,10 +412,10 @@ const QUESTIONS = [
     question:
       "You enforce extraction with a strict JSON schema via tool use, yet you still see invoices where the line items don't sum to the stated total and values land in the wrong fields. What does this reveal?",
     options: [
-      "Strict schemas eliminate syntax errors but not semantic errors; you need validation logic (e.g., comparing calculated_total to stated_total) on top of the schema.",
-      "The schema isn't strict enough; add more required fields and it will be fixed.",
-      "Tool use is the wrong approach; revert to prose JSON and validate manually.",
-      "The model needs a larger context window to add the numbers correctly.",
+      "Schemas stop syntax errors but not semantic ones; add validation logic such as comparing calculated_total to stated_total.",
+      "The schema isn't strict enough; adding more required fields and enum constraints will prevent these errors.",
+      "Tool use is the wrong approach for invoices; revert to prose JSON output and validate each of the totals manually afterward.",
+      "The model needs a larger context window so it can hold every line item and add the numbers correctly.",
     ],
     correct: 0,
     explanation:
@@ -428,10 +428,10 @@ const QUESTIONS = [
     question:
       "Some source documents simply don't contain a field your schema marks as required, and the model fabricates plausible values to satisfy it. How should you design the schema?",
     options: [
-      "Make fields optional/nullable when the source may not contain the information, so the model can return null instead of inventing values.",
-      "Keep the field required but instruct the model to \"leave it blank if unknown.\"",
-      "Add a retry loop that re-asks until the model produces a value.",
-      "Set tool_choice to \"any\" so the model must fill every field.",
+      "Make fields optional/nullable when the source may lack the information, so the model can return null instead.",
+      "Keep the field required but instruct the model to \"leave it blank if unknown\" in the field description.",
+      "Add a retry loop that re-asks with the validation error until the model produces a value for the field.",
+      "Set tool_choice to \"any\" so the model is forced to locate and populate every required field from the source.",
     ],
     correct: 0,
     explanation:
@@ -444,10 +444,10 @@ const QUESTIONS = [
     question:
       "Your validation-retry loop appends the specific validation error to the prompt and re-asks. It fixes format mismatches well, but a subset of documents keeps failing because the required value isn't present in the document at all. What is the correct understanding?",
     options: [
-      "Retries help with format/structural errors but are ineffective when the required information is simply absent from the source; those cases should route elsewhere (e.g., human review).",
-      "More retry iterations will eventually surface the missing value.",
-      "The validation error message is wrong; fix it and retries will succeed.",
-      "Switching to a stricter schema will recover the missing values.",
+      "Retries fix format errors but can't recover values absent from the source; route those cases elsewhere, e.g. human review.",
+      "More retry iterations with the same error feedback will eventually get the model to surface the missing value.",
+      "The validation error message is too vague; rewrite it more specifically and the retries will succeed.",
+      "Switching to a stricter schema with the field marked required and non-null will force the model to recover the missing values.",
     ],
     correct: 0,
     explanation:
@@ -460,9 +460,9 @@ const QUESTIONS = [
     question:
       "A PR modifies 14 files. Your single-pass review of all files together gives deep feedback on some files but superficial comments on others, misses obvious bugs, and even flags a pattern in one file while approving identical code elsewhere. How should you restructure?",
     options: [
-      "Split into focused passes: analyze each file individually for local issues, then run a separate integration-focused pass for cross-file data flow.",
-      "Require developers to split large PRs into 3–4 file submissions.",
-      "Switch to a higher-tier model with a larger context window for one big pass.",
+      "Split into per-file passes for local issues, then a separate integration pass for cross-file data flow.",
+      "Require developers to split large PRs into 3–4 file submissions so each review stays within one pass.",
+      "Switch to a higher-tier model with a larger context window and keep reviewing everything in one big pass.",
       "Run three independent passes on the full PR and only flag issues appearing in at least two.",
     ],
     correct: 0,
@@ -476,10 +476,10 @@ const QUESTIONS = [
     question:
       "Your pipeline must always run extract_metadata before any enrichment tools, every time. How do you guarantee the metadata tool runs first?",
     options: [
-      "Force it with tool_choice {\"type\":\"tool\",\"name\":\"extract_metadata\"} on the first turn, then process subsequent steps in follow-up turns.",
-      "Set tool_choice to \"auto\" and hope the model picks extract_metadata first.",
-      "List extract_metadata first in the tools array; the model always calls tools in order.",
-      "Set tool_choice to \"any\" so a tool is always called first.",
+      "Set tool_choice {\"type\":\"tool\",\"name\":\"extract_metadata\"} for the first turn, then run enrichment in follow-up turns.",
+      "Set tool_choice to \"auto\" and describe extract_metadata in the system prompt as the mandatory first step.",
+      "List extract_metadata first in the tools array, since the model always calls tools in the order they're defined there.",
+      "Set tool_choice to \"any\" so that some tool is always called on the first turn, starting with metadata.",
     ],
     correct: 0,
     explanation:
@@ -494,10 +494,10 @@ const QUESTIONS = [
     question:
       "In long multi-issue support conversations, progressive summarization is condensing exact amounts, dates, and order numbers into vague phrases, and the agent later loses track of them. What's the best mitigation?",
     options: [
-      "Extract transactional facts (amounts, dates, order numbers, statuses) into a persistent \"case facts\" block included in each prompt, outside the summarized history.",
-      "Disable summarization entirely and always send the full raw history.",
-      "Instruct the model in the system prompt to \"never forget important numbers.\"",
-      "Lower max_tokens so the model is forced to keep responses focused.",
+      "Keep amounts, dates, and order numbers in a persistent \"case facts\" block in every prompt, outside the summarized history.",
+      "Disable summarization entirely and always send the full raw history so that no detail is ever condensed away.",
+      "Instruct the model in the system prompt to \"never forget important numbers\" whenever it summarizes the earlier history.",
+      "Lower the summarizer's max_tokens so its summaries stay short and keep only the most important figures.",
     ],
     correct: 0,
     explanation:
@@ -510,10 +510,10 @@ const QUESTIONS = [
     question:
       "When the synthesis agent receives a large aggregated input, findings buried in the middle are frequently omitted from the final report, while the start and end are handled well. What mitigations target this?",
     options: [
-      "Place key-findings summaries at the beginning and organize detailed results under explicit section headers to counter position effects.",
-      "Sort the findings alphabetically so nothing is privileged by position.",
-      "Truncate the middle of the input since the model ignores it anyway.",
-      "Increase max_tokens so the middle content fits more comfortably.",
+      "Put a key-findings summary at the beginning and organize detailed results under explicit section headers.",
+      "Sort the findings alphabetically by source so that no single finding is privileged by its position.",
+      "Truncate the middle of the aggregated input, since the model largely ignores that section anyway.",
+      "Increase max_tokens so the middle content has more room and gets processed more comfortably.",
     ],
     correct: 0,
     explanation:
@@ -526,10 +526,10 @@ const QUESTIONS = [
     question:
       "During an extended large-codebase exploration, the agent starts giving inconsistent answers and referencing \"typical patterns\" instead of the specific classes it found earlier. What technique counteracts this context degradation?",
     options: [
-      "Have agents maintain scratchpad files recording key findings and reference them for subsequent questions.",
-      "Restart the session from scratch each time answers drift.",
-      "Increase max_tokens so the whole codebase stays in context.",
-      "Ask the model to think harder about what it already knows.",
+      "Have agents maintain scratchpad files of key findings and reference them for later questions.",
+      "Restart the session from scratch each time the answers start to drift from earlier findings.",
+      "Increase max_tokens so the entire codebase stays loaded in context for the whole exploration.",
+      "Enable extended thinking so the model re-derives what it already learned before each answer.",
     ],
     correct: 0,
     explanation:
@@ -542,10 +542,10 @@ const QUESTIONS = [
     question:
       "You want to route only low-confidence extractions to scarce human reviewers. A teammate suggests just asking the model \"how confident are you (1–10)?\" and routing low scores. What's the more reliable design?",
     options: [
-      "Have the model output field-level confidence scores, then calibrate review thresholds using a labeled validation set.",
-      "Trust the model's raw 1–10 self-rating and route anything below 7.",
-      "Route a fixed random 10% of all extractions regardless of confidence.",
-      "Only review extractions the model explicitly refuses to produce.",
+      "Have the model output field-level confidence scores, then calibrate thresholds on a labeled validation set.",
+      "Trust the model's raw 1–10 self-rating and route anything below 7 straight to a human reviewer.",
+      "Route a fixed random 10% of all extractions to reviewers regardless of the model's confidence.",
+      "Only review extractions the model explicitly refuses to produce, since those are the uncertain ones.",
     ],
     correct: 0,
     explanation:
@@ -558,10 +558,10 @@ const QUESTIONS = [
     question:
       "Your extraction system reports 97% aggregate accuracy, so the team wants to automate high-confidence extractions with no review. What's the risk and the right check before doing so?",
     options: [
-      "Aggregate accuracy can mask poor performance on specific document types or fields; analyze accuracy by document type and field segment, and use stratified random sampling to measure error rates.",
-      "97% is above any reasonable bar; automate immediately and monitor cost.",
-      "Re-run the whole dataset twice and average the accuracy for a tighter number.",
-      "Route everything to human review permanently to be safe.",
+      "Aggregate accuracy can hide weak document types or fields; measure accuracy per segment with stratified random sampling.",
+      "97% is above any reasonable accuracy bar, so automate immediately and just monitor cost per document.",
+      "Re-run the whole dataset twice and average the two accuracy figures to get a tighter aggregate number.",
+      "Route every extraction to human review permanently, since no aggregate accuracy figure is ever safe enough to automate on.",
     ],
     correct: 0,
     explanation:
@@ -574,10 +574,10 @@ const QUESTIONS = [
     question:
       "Your synthesis agent merges findings from several sources, but the final report drops which claim came from which source, making fact-checking impossible. How do you preserve provenance?",
     options: [
-      "Require subagents to output structured claim-source mappings (source URLs, document names, excerpts) that the synthesis agent preserves and merges.",
-      "Tell the synthesis agent in prose to \"remember the sources\" while summarizing.",
-      "Add the source list once at the end of the report rather than per claim.",
-      "Have each subagent return only a prose summary so synthesis is simpler.",
+      "Require subagents to output structured claim-source mappings (URLs, document names, excerpts) that synthesis preserves.",
+      "Tell the synthesis agent in its system prompt to \"remember the sources\" while it summarizes the findings.",
+      "Add a consolidated source list once at the end of the report rather than attaching sources per claim.",
+      "Have each subagent return only a short prose summary so the synthesis step has less structure to reconcile and merge.",
     ],
     correct: 0,
     explanation:
@@ -590,10 +590,10 @@ const QUESTIONS = [
     question:
       "A customer explicitly says \"I want to speak to a human now.\" The agent believes it can resolve the underlying issue itself. What is the correct behavior?",
     options: [
-      "Honor the explicit request for a human immediately, without first attempting its own investigation.",
-      "Attempt to resolve the issue first, and escalate only if the agent fails.",
-      "Run sentiment analysis to decide whether the request is genuine before escalating.",
-      "Ask the customer several diagnostic questions to determine complexity first.",
+      "Honor the explicit request and escalate to a human immediately, without investigating first.",
+      "Attempt to resolve the issue first, and escalate to a human only if the agent's attempt fails.",
+      "Run sentiment analysis on the message to check the request is genuine before escalating.",
+      "Ask the customer a few diagnostic questions to gauge the issue's complexity before escalating.",
     ],
     correct: 0,
     explanation:
@@ -608,10 +608,10 @@ const QUESTIONS = [
     question:
       "Your multi-agent codebase-exploration system runs for hours, and occasionally a subagent process dies mid-run, forcing the whole exploration to restart from scratch. You want the coordinator to resume without re-doing completed work. What is the most reliable design?",
     options: [
-      "Have each agent export its state to a known location as it works, and have the coordinator load a manifest of those states on resume.",
+      "Have agents export state to a known location as they work and the coordinator load a manifest of it on resume.",
       "Increase each subagent's max_tokens so it can hold all prior findings in context and never needs to restart.",
       "Rely on the coordinator's conversation history, since subagents automatically inherit it and can rebuild lost state.",
-      "Catch the crash and silently continue with whatever partial results are already in memory.",
+      "Catch the crash and silently continue from whatever partial results the coordinator still holds in memory.",
     ],
     correct: 0,
     explanation:
@@ -624,10 +624,10 @@ const QUESTIONS = [
     question:
       "Your monorepo has several packages, each with distinct standards. Your root CLAUDE.md has grown huge because it inlines every package's conventions, and maintainers say it is hard to keep current. What keeps CLAUDE.md modular while still giving each package its relevant standards?",
     options: [
-      "Use the @import syntax in CLAUDE.md to reference external standards files, importing only those relevant to each package.",
-      "Duplicate the full CLAUDE.md into every package directory so each is self-contained.",
+      "Use @import in CLAUDE.md to pull in external standards files, only those relevant to each package.",
+      "Duplicate the full CLAUDE.md into every package directory so each package is fully self-contained.",
       "Move all standards into a single ~/.claude/CLAUDE.md so every teammate loads them automatically.",
-      "Delete the shared standards and rely on Claude to infer conventions from surrounding code.",
+      "Delete the shared standards and rely on Claude to infer each package's conventions from surrounding code.",
     ],
     correct: 0,
     explanation:
@@ -640,10 +640,10 @@ const QUESTIONS = [
     question:
       "Your MCP tools currently return a generic \"Operation failed\" string for every failure, so the agent retries policy violations (wasting calls) and gives up on transient timeouts (that would have succeeded). What is the best fix?",
     options: [
-      "Return structured error metadata: an errorCategory (transient/validation/business/permission), an isRetryable boolean, and a human-readable description.",
-      "Set isError on every failure and let the agent retry all of them a fixed number of times.",
-      "Raise a fatal exception on any failure so the coordinator terminates the workflow immediately.",
-      "Return an empty successful result for failures so the agent can move on without retrying.",
+      "Return structured errors with an errorCategory (transient/validation/business/permission), isRetryable flag, and description.",
+      "Set isError on every failure and have the agent retry all of them a fixed number of times with exponential backoff.",
+      "Raise a fatal exception on any failure so the coordinator terminates the workflow immediately and reports the error upstream.",
+      "Return an empty successful result for failures so the agent can move on to its next step without wasting retries.",
     ],
     correct: 0,
     explanation:
@@ -656,10 +656,10 @@ const QUESTIONS = [
     question:
       "Your agent consumes three MCP tools that each return dates differently: one uses Unix timestamps, one ISO 8601, one numeric status codes. The model keeps misreading these heterogeneous formats. What is the most reliable way to give it consistent data?",
     options: [
-      "Implement a PostToolUse hook that intercepts each tool result and normalizes the formats before the model processes them.",
+      "Use a PostToolUse hook to normalize each tool result's formats before the model processes it.",
       "Add a sentence to the system prompt asking the model to convert all timestamps to ISO 8601 itself.",
-      "Increase max_tokens so the model has room to reason about each format on the fly.",
-      "Switch tool_choice to \"any\" so the model is forced to call a normalization tool.",
+      "Increase max_tokens so the model has room to reason through each date format on the fly.",
+      "Switch tool_choice to \"any\" so the model is forced to call a normalization tool first.",
     ],
     correct: 0,
     explanation:
@@ -672,10 +672,10 @@ const QUESTIONS = [
     question:
       "Developers dismiss many of your automated review findings as false positives, but you have no systematic way to see which code constructs trigger the bad findings. What should you add to the structured output to enable that analysis?",
     options: [
-      "A detected_pattern field on each finding recording which code construct triggered it, so dismissals can be analyzed systematically.",
-      "A free-text summary at the end of the review listing everything the model looked at.",
+      "A detected_pattern field on each finding recording which code construct triggered it.",
+      "A free-text summary at the end of the review listing every file and construct the model looked at.",
       "A confidence score from 1-10 on each finding so low-confidence ones can be hidden.",
-      "A retry of the whole review with a stricter \"be conservative\" instruction.",
+      "A retry of the whole review with a stricter \"be conservative\" instruction appended.",
     ],
     correct: 0,
     explanation:
@@ -688,10 +688,10 @@ const QUESTIONS = [
     question:
       "During a long multi-phase task, your main agent's context fills with verbose file dumps from a discovery phase, and its later answers degrade. You want the discovery done without polluting the main conversation. What is the right tool?",
     options: [
-      "Use the Explore subagent to isolate the verbose discovery and return only a concise summary to the main conversation.",
-      "Raise the main agent's max_tokens so the file dumps fit alongside everything else.",
-      "Run /compact after every file read to keep the transcript short.",
-      "Disable plan mode so the agent stops exploring and starts editing sooner.",
+      "Use the Explore subagent to isolate the verbose discovery and return only a concise summary.",
+      "Raise the main agent's max_tokens so the file dumps fit alongside everything else in context.",
+      "Run /compact after every file read to keep the main transcript short throughout discovery.",
+      "Disable plan mode so the agent stops exploring early and moves on to editing sooner.",
     ],
     correct: 0,
     explanation:
@@ -704,10 +704,10 @@ const QUESTIONS = [
     question:
       "You must process nightly extraction batches on the Message Batches API (up to a 24-hour processing window) while guaranteeing results within a 30-hour SLA. How should you schedule submissions?",
     options: [
-      "Submit on a fixed cadence no less frequent than every 6 hours, so the 24-hour processing window still fits inside the 30-hour SLA.",
-      "Submit once per day; the 50% cost savings guarantees results well before 30 hours.",
-      "Switch to the synchronous API, since the Batches API cannot meet any SLA.",
-      "Submit everything in one large batch at the SLA deadline to minimize cost.",
+      "Submit at least every 6 hours, so the 24-hour processing window always fits inside the 30-hour SLA.",
+      "Submit once per day; the Batches API's 50% cost savings come with results well before the 30-hour mark.",
+      "Switch to the synchronous Messages API, since the Batches API cannot meet any SLA under 48 hours.",
+      "Submit everything in one large batch right at the SLA deadline to maximize the cost discount.",
     ],
     correct: 0,
     explanation:
@@ -722,7 +722,7 @@ const QUESTIONS = [
     options: [
       "Emit multiple Task tool calls in a single coordinator response, and ensure allowedTools includes \"Task\".",
       "Emit one Task call per turn across separate coordinator responses so each finishes before the next starts.",
-      "Set tool_choice to \"any\" so the model decides to parallelize on its own.",
+      "Set tool_choice to \"any\" so the model decides on its own to run both subagents in parallel.",
       "Rely on subagents inheriting the coordinator's context so they can coordinate their own timing.",
     ],
     correct: 0,
