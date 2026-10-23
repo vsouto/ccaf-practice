@@ -21,6 +21,7 @@ missed questions that clears itself as you get them right.
 - **Exams by size.** 3, 5, 10, 20 or 40 questions, drawn at random and weighted by the five
   blueprint domains (27 / 18 / 20 / 20 / 15 %).
 - **Full mock.** Matthew Purcell's 60-question set, run in scenario order like the real exam.
+- **Custom.** Pick which question sources to draw from and how many questions, still weighted by domain.
 - **Multiple-response questions.** "Select TWO" items, scored all-or-nothing.
 - **Scaled score.** A linear 100–1000 estimate with the 720 pass line, plus a per-domain breakdown
   and an explanation for every answer.
@@ -46,9 +47,9 @@ Keyboard: `1`–`5` pick an answer, `→`/`Enter` next, `←` back.
 
 | File | Questions | Author |
 |---|---|---|
-| `questions.js` | 44 | Victor Souto: the original set |
-| `quiz-new8.html` | 8 | Victor Souto: gap-fill quiz |
-| `questions-alter77.js` | 65 | [Olivier Legris / Alter](https://github.com/OlivierAlter/Claude-Certified-Architect-Foundations-Certification-Exam) |
+| `questions.js` | 44 | Victor V. Souto: the original set |
+| `quiz-new8.html` | 8 | Victor V. Souto: gap-fill quiz |
+| `questions-alter77.js` | 65 | [Olivier Legris](https://github.com/OlivierAlter/Claude-Certified-Architect-Foundations-Certification-Exam) |
 | `questions-purcell60.js` | 60 | [Matthew Purcell](https://www.linkedin.com/in/purcellmatthew) |
 
 Every question has the same shape:
@@ -62,8 +63,8 @@ file is optional: delete one and the app keeps working with the rest.
 
 ## License
 
-The app code and Victor Souto's questions are MIT-licensed (see `LICENSE`). The Alter and
-Purcell question sets remain the work of their authors. They are included with attribution and
+The app code and Victor V. Souto's questions are MIT-licensed (see `LICENSE`). The Olivier Legris and
+Matthew Purcell question sets remain the work of their authors. They are included with attribution and
 are not covered by the MIT license. Authors who would like their set removed or credited
 differently can open an issue.
 

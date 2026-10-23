@@ -147,6 +147,18 @@
   .unofficial { margin-left:10px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); border:1px solid var(--line); }
   .disclaimer { margin-top:40px; font-size:12px; line-height:1.55; color: var(--muted); text-align:center; }
   .disclaimer a { color: var(--muted); }
+  .custom { margin-top: 16px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; background: #fcfbf8; }
+  .custom .fieldlbl { margin-top: 0; }
+  .sources { display: grid; gap: 8px; margin-bottom: 16px; }
+  .src { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); cursor: pointer; }
+  .src:hover { border-color: #cbb9ae; }
+  .src.on { border-color: var(--accent); background: #fff7f3; }
+  .src input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+  .src .nm { font-weight: 600; flex: 1; }
+  .count-row { display: flex; align-items: center; gap: 12px; }
+  .count-row input[type=range] { flex: 1; accent-color: var(--accent); }
+  .count-row output { min-width: 3ch; font-weight: 700; font-size: 18px; text-align: right; font-variant-numeric: tabular-nums; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
   .btn.small { padding: 7px 12px; font-size: 13px; border-radius: 8px; }
 </style>
 </head>
@@ -162,6 +174,15 @@
       <div class="weights" id="weights"></div>
       <label class="fieldlbl">How many questions?</label>
       <div class="sizes" id="sizes"></div>
+      <div class="custom hide" id="custom-panel">
+        <label class="fieldlbl">Question sources</label>
+        <div class="sources" id="sources"></div>
+        <label class="fieldlbl" for="custom-n">How many?</label>
+        <div class="count-row">
+          <input type="range" id="custom-n" min="1" max="1" step="1">
+          <output id="custom-n-out" for="custom-n"></output>
+        </div>
+      </div>
       <p class="footnote" style="text-align:left;margin-top:14px;">Pass mark mirrors the real exam: <strong>720&nbsp;/&nbsp;1000</strong> scaled (≈72% correct). No penalty for wrong answers.</p>
       <div class="row-actions">
         <span class="meta wpct" id="bank-count"></span>
@@ -240,7 +261,7 @@
   <p class="disclaimer">
     Unofficial, community-made practice for the Claude Certified Architect – Foundations exam.
     Not affiliated with, endorsed by, or sponsored by Anthropic. Contains no real exam content.<br>
-    Questions: original set by Victor Souto, plus sets by Olivier Legris and Matthew Purcell (credited in the source).
+    Questions by Victor V. Souto, Olivier Legris and Matthew Purcell.
     <a href="https://github.com/vsouto/ccaf-practice">Source on GitHub</a>
   </p>
 </div>
@@ -261,19 +282,48 @@
     { n: 40, label: "Full",    badge: "" },
     { n: 8,  label: "New 8",   badge: "gap-fill set", special: "new8" },
     { n: 60, label: "Purcell", badge: "full mock set", special: "purcell60" },
+    { n: 0,  label: "Custom",  badge: "pick sources", special: "custom" },
   ];
   var chosenSize = 5;
   var chosenSpecial = null;  // non-null selects a named quiz instead of a random draw
 
-  // Single merged pool: the original hand-written bank plus the Alter 77-question
-  // set (both target the same certification and share WEIGHTS/DOMAINS). Exams are
-  // drawn from everything at once — pick your training purely by question count.
-  // Matthew Purcell's 60-question set joins the pool too, and can also be run
-  // on its own, in scenario order, as a full mock exam.
+  // Question sources. All share WEIGHTS/DOMAINS, and the sized exams draw from
+  // every source at once. The Custom exam draws only from the sources you tick.
+  // Matthew Purcell's set can also be run on its own, in scenario order, as a
+  // full mock exam. A missing bank file just drops that source.
   var PURCELL60 = typeof PURCELL60_QUESTIONS !== "undefined" ? PURCELL60_QUESTIONS : [];
-  var POOL = QUESTIONS
-    .concat(typeof ALTER77_QUESTIONS !== "undefined" ? ALTER77_QUESTIONS : [])
-    .concat(PURCELL60);
+  var SOURCES = [
+    { key: "souto",   name: "Victor V. Souto", list: QUESTIONS },
+    { key: "legris",  name: "Olivier Legris",  list: typeof ALTER77_QUESTIONS !== "undefined" ? ALTER77_QUESTIONS : [] },
+    { key: "purcell", name: "Matthew Purcell", list: PURCELL60 },
+  ].filter(function (src) { return src.list.length; });
+  var SOURCE_OF = {};  // question id -> source
+  var POOL = [];
+  SOURCES.forEach(function (src) {
+    src.list.forEach(function (q) { SOURCE_OF[q.id] = src; });
+    POOL = POOL.concat(src.list);
+  });
+  function sourceName(q) { return SOURCE_OF[q.id] ? SOURCE_OF[q.id].name : ""; }
+
+  // Custom exam settings, remembered per browser.
+  var CUSTOM_KEY = "ccaf-custom-v1";
+  var custom = (function () {
+    var all = SOURCES.map(function (src) { return src.key; });
+    try {
+      var c = JSON.parse(localStorage.getItem(CUSTOM_KEY));
+      if (c && Array.isArray(c.sources) && c.n > 0) {
+        c.sources = c.sources.filter(function (k) { return all.indexOf(k) !== -1; });
+        return c;
+      }
+    } catch (e) {}
+    return { sources: all, n: 20 };
+  })();
+  function saveCustom() {
+    try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(custom)); } catch (e) {}
+  }
+  function customPool() {
+    return POOL.filter(function (q) { return custom.sources.indexOf(SOURCE_OF[q.id].key) !== -1; });
+  }
   function findQuestion(id) {
     for (var i = 0; i < POOL.length; i++) if (POOL[i].id === id) return POOL[i];
     return null;
@@ -306,8 +356,7 @@
 
   // Largest-remainder allocation of N questions across domains by WEIGHTS,
   // capped by how many questions each domain actually has in the bank.
-  function allocate(total) {
-    var bank = POOL;
+  function allocate(total, bank) {
     var domains = Object.keys(WEIGHTS).map(Number);
     var avail = {};
     domains.forEach(function (d) {
@@ -370,9 +419,9 @@
   }
   function pickCount(q) { return isMulti(q) ? q.correct.length : 1; }
 
-  function buildExam(total) {
-    var bank = POOL;
-    var counts = allocate(total);
+  function buildExam(total, bank) {
+    bank = bank || POOL;
+    var counts = allocate(total, bank);
     var picked = [];
     Object.keys(counts).forEach(function (d) {
       d = Number(d);
@@ -476,7 +525,7 @@
       rev.className = "rev no";
       var html =
         '<div class="rhead"><span class="icon">✕</span>' +
-        '<div><div class="rscn">Domain ' + q.domain + ' · ' + DOMAINS[q.domain] + ' · ' + q.scenario +
+        '<div><div class="rscn">Domain ' + q.domain + ' · ' + DOMAINS[q.domain] + ' · ' + q.scenario + ' · ' + sourceName(q) +
         ' · ' + new Date(m.lastTs).toLocaleDateString(undefined, { month: "short", day: "numeric" }) + '</div>' +
         '<div class="rq">' + fmt(q.question) + '</div></div></div>' +
         '<div class="rbody">';
@@ -651,7 +700,7 @@
         : (opt.n === chosenSize && !chosenSpecial);
       var el = document.createElement("div");
       el.className = "size-opt" + (active ? " active" : "");
-      el.innerHTML = '<div class="n">' + opt.n + '</div><div class="t">' + opt.label + '</div>' +
+      el.innerHTML = '<div class="n">' + (opt.special === "custom" ? Math.min(custom.n, customPool().length) : opt.n) + '</div><div class="t">' + opt.label + '</div>' +
         (opt.badge ? '<span class="badge">' + opt.badge + '</span>' : '');
       el.addEventListener("click", function () {
         chosenSize = opt.n;
@@ -661,7 +710,48 @@
       s.appendChild(el);
     });
 
-    $("bank-count").textContent = POOL.length + " questions in the bank";
+    renderCustom();
+  }
+
+  function renderCustom() {
+    var on = chosenSpecial === "custom";
+    $("custom-panel").classList.toggle("hide", !on);
+    var pool = customPool();
+    $("bank-count").textContent = on
+      ? pool.length + " questions in the selected sources"
+      : POOL.length + " questions in the bank";
+    $("start-btn").disabled = on && !pool.length;
+    if (!on) return;
+
+    var box = $("sources");
+    box.innerHTML = "";
+    SOURCES.forEach(function (src) {
+      var checked = custom.sources.indexOf(src.key) !== -1;
+      var row = document.createElement("label");
+      row.className = "src" + (checked ? " on" : "");
+      row.innerHTML = '<input type="checkbox"' + (checked ? " checked" : "") + '>' +
+        '<span class="nm">' + src.name + '</span>' +
+        '<span class="wpct">' + src.list.length + ' questions</span>';
+      row.querySelector("input").addEventListener("change", function (e) {
+        if (e.target.checked) custom.sources.push(src.key);
+        else custom.sources = custom.sources.filter(function (k) { return k !== src.key; });
+        saveCustom();
+        renderStart();
+      });
+      box.appendChild(row);
+    });
+
+    var range = $("custom-n");
+    range.max = Math.max(pool.length, 1);
+    range.disabled = !pool.length;
+    range.value = Math.min(custom.n, pool.length);
+    $("custom-n-out").textContent = pool.length ? range.value : "—";
+    range.oninput = function () {
+      custom.n = Number(range.value);
+      $("custom-n-out").textContent = range.value;
+      document.querySelector(".size-opt.active .n").textContent = range.value;
+    };
+    range.onchange = saveCustom;
   }
 
   // ---------- exam screen ----------
@@ -787,7 +877,7 @@
       var yourText = answers[i] === null ? "<em>Not answered</em>" : fmt(optText(q, answers[i]));
       var html =
         '<div class="rhead"><span class="icon">' + (ok ? "✓" : "✕") + '</span>' +
-        '<div><div class="rscn">Q' + (i + 1) + ' · Domain ' + q.domain + ' · ' + q.scenario + '</div>' +
+        '<div><div class="rscn">Q' + (i + 1) + ' · Domain ' + q.domain + ' · ' + q.scenario + ' · ' + sourceName(q.ref) + '</div>' +
         '<div class="rq">' + fmt(q.question) + '</div></div></div>' +
         '<div class="rbody">';
       if (!ok) {
@@ -807,6 +897,7 @@
   $("start-btn").addEventListener("click", function () {
     exam = chosenSpecial === "new8" ? buildFromIds(NEW8_IDS)
       : chosenSpecial === "purcell60" ? buildFromIds(PURCELL60.map(function (q) { return q.id; }), true)
+      : chosenSpecial === "custom" ? buildExam(Math.min(custom.n, customPool().length), customPool())
       : buildExam(chosenSize);
     answers = exam.map(function () { return null; });
     idx = 0;
