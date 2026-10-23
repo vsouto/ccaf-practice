@@ -1,0 +1,4 @@
+*:Zone.Identifier
+# Personal notes, results, source scans and Anthropic documents: kept locally, never published
+private/
+node_modules/
