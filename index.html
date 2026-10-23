@@ -145,7 +145,16 @@
   .miss-badge { font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--red); }
   .multi-hint { display:inline-block; margin-left:6px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color: var(--accent-dark); background:#fff7f3; border:1px solid var(--accent); vertical-align:middle; }
   .unofficial { margin-left:10px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); border:1px solid var(--line); }
-  .disclaimer { margin-top:40px; font-size:12px; line-height:1.55; color: var(--muted); text-align:center; }
+  .sitefoot { margin-top: 44px; }
+  .foot-card { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:18px 20px; background: var(--card); border:1px solid var(--line); border-radius:14px; box-shadow: var(--shadow); }
+  .foot-title { font-weight:700; font-size:16px; }
+  .foot-sub { color: var(--muted); font-size:14px; margin-top:2px; }
+  .foot-actions { display:flex; gap:10px; flex-wrap:wrap; }
+  .foot-actions .btn { display:inline-flex; align-items:center; gap:7px; text-decoration:none; }
+  .btn.star { background: var(--ink); color: #fff; }
+  .btn.star:hover { background: #000; }
+  .btn.star svg { color: #f5b301; }
+  .disclaimer { margin-top:18px; font-size:12px; line-height:1.55; color: var(--muted); text-align:center; }
   .disclaimer a { color: var(--muted); }
   .custom { margin-top: 16px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; background: #fcfbf8; }
   .custom .fieldlbl { margin-top: 0; }
@@ -258,12 +267,26 @@
     <p class="footnote">Scaled score is a linear estimate (100–1000) for practice. On short exams it moves in big steps — focus on the per-domain breakdown and explanations.</p>
   </section>
 
-  <p class="disclaimer">
-    Unofficial, community-made practice for the Claude Certified Architect – Foundations exam.
-    Not affiliated with, endorsed by, or sponsored by Anthropic. Contains no real exam content.<br>
-    Questions by Victor V. Souto, Olivier Legris and Matthew Purcell.
-    <a href="https://github.com/vsouto/ccaf-practice">Source on GitHub</a>
-  </p>
+  <footer class="sitefoot">
+    <div class="foot-card">
+      <div class="foot-who">
+        <div class="foot-title">Built by Victor V. Souto</div>
+        <div class="foot-sub">Found it useful? A star on GitHub helps other candidates find it.</div>
+      </div>
+      <div class="foot-actions">
+        <a class="btn small star" href="https://github.com/vsouto/ccaf-practice" target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.94 5.96 6.56.95-4.75 4.63 1.12 6.54L12 17.5l-5.87 3.08 1.12-6.54L2.5 9.41l6.56-.95z"/></svg>
+          Star on GitHub
+        </a>
+        <a class="btn ghost small" href="https://vsouto.com" target="_blank" rel="noopener">vsouto.com</a>
+      </div>
+    </div>
+    <p class="disclaimer">
+      Unofficial, community-made practice for the Claude Certified Architect – Foundations exam.
+      Not affiliated with, endorsed by, or sponsored by Anthropic. Contains no real exam content.<br>
+      Questions by Victor V. Souto, Olivier Legris and Matthew Purcell.
+    </p>
+  </footer>
 </div>
 
 <script src="questions.js"></script>
